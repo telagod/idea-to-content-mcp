@@ -41,9 +41,18 @@ npm start
 
 ```json
 {
-  "name": "idea-to-content-mcp",
-  "command": "node",
-  "args": ["dist/index.js"]
+  "servers": {
+    "idea-to-content-mcp": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/idea-to-content-mcp/dist/index.js"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "sk-xxx-your-key",
+        "OPENAI_MODEL": "gpt-4.1-mini"
+      }
+    }
+  }
 }
 ```
 
@@ -73,4 +82,3 @@ npm start
 
 - 不要在仓库中提交任何真实的 API Key
 - 默认使用 OpenAI 接口, 如需适配其他模型服务, 可以在 `src/index.ts` 中替换 `callModel` 实现
-
