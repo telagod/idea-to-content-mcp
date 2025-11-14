@@ -63,18 +63,16 @@ type PlatformGuide = {
   mustHave: string[];
 };
 
-type Plan = {
-  project: ProjectCard;
-  platformGuide: PlatformGuide;
-  topics: Topic[];
-};
-
 type ToolArgs = {
   platform?: Platform;
   idea: string;
   goal: string;
   audience: string;
   style?: string;
+};
+
+type PromptOutput = {
+  systemPrompt: string;
 };
 
 const schemaInput = z.object({
@@ -85,51 +83,8 @@ const schemaInput = z.object({
   style: z.string().optional()
 });
 
-const schemaOutput: z.ZodType<Plan> = z.object({
-  project: z.object({
-    name: z.string(),
-    audience: z.string(),
-    pain: z.string(),
-    visibleResult: z.string(),
-    aiRole: z.string()
-  }),
-  platformGuide: z.object({
-    name: z.string(),
-    duration: z.string(),
-    ratio: z.string(),
-    styleTips: z.array(z.string()),
-    mustHave: z.array(z.string())
-  }),
-  topics: z.array(
-    z.object({
-      title: z.string(),
-      angle: z.string(),
-      script: z.object({
-        hook: z.object({
-          text: z.string(),
-          focus: z.string()
-        }),
-        body: z.array(
-          z.object({
-            text: z.string(),
-            emphasis: z.string()
-          })
-        ),
-        outro: z.object({
-          text: z.string(),
-          callToAction: z.string()
-        })
-      }),
-      shots: z.array(
-        z.object({
-          order: z.number(),
-          type: z.enum(["screen", "talking", "broll", "text"]),
-          description: z.string(),
-          approximateSeconds: z.number()
-        })
-      )
-    })
-  )
+const schemaOutput: z.ZodType<PromptOutput> = z.object({
+  systemPrompt: z.string()
 });
 
 const getPlatformHint = (p: Platform): string => {
@@ -229,58 +184,6 @@ const buildPrompt = (x: IdeaInput): string => {
   return prompt;
 };
 
-const callModel = async (prompt: string): Promise<Plan> => {
-  const key = process.env.OPENAI_API_KEY;
-
-  if (!key) {
-    throw new Error("OPENAI_API_KEY 未配置, 无法调用模型生成内容工作流计划");
-  }
-
-  const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
-
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: "system",
-          content: "你是一个严格遵守输出 JSON 结构的内容编导助手。"
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      temperature: 0.7
-    })
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`调用模型失败: ${text}`);
-  }
-
-  const json = (await res.json()) as {
-    choices: { message?: { content?: string } }[];
-  };
-
-  const content = json.choices[0]?.message?.content;
-
-  if (!content) {
-    throw new Error("模型返回内容为空");
-  }
-
-  const data = JSON.parse(content) as unknown;
-  const plan = schemaOutput.parse(data);
-
-  return plan;
-};
-
 const main = async (): Promise<void> => {
   const server = new McpServer(
     {
@@ -312,16 +215,17 @@ const main = async (): Promise<void> => {
       };
 
       const prompt = buildPrompt(data);
-      const plan = await callModel(prompt);
 
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify(plan, null, 2)
+            text: prompt
           }
         ],
-        structuredContent: plan
+        structuredContent: {
+          systemPrompt: prompt
+        }
       };
     }
   );
